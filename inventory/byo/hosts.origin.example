@@ -6,7 +6,7 @@ masters
 nodes
 etcd
 lb
-nfs
+# nfs
 
 # Set variables common for all OSEv3 hosts
 [OSEv3:vars]
@@ -35,7 +35,8 @@ openshift_release=v1.4
 # Specify an exact container image tag to install or configure.
 # WARNING: This value will be used for all hosts in containerized environments, even those that have another version installed.
 # This could potentially trigger an upgrade and downtime, so be careful with modifying this value after the cluster is set up.
-#openshift_image_tag=v1.2.0
+# openshift_image_tag=v1.4.1
+# containerized=true
 
 # Specify an exact rpm version to install or configure.
 # WARNING: This value will be used for all hosts in RPM based environments, even those that have another version installed.
@@ -43,7 +44,7 @@ openshift_release=v1.4
 #openshift_pkg_version=-1.2.0
 
 # Install the openshift examples
-#openshift_install_examples=true
+openshift_install_examples=true
 
 # Configure logoutURL in the master config for console customization
 # See: https://docs.openshift.org/latest/install_config/web_console_customization.html#changing-the-logout-url
@@ -63,7 +64,7 @@ openshift_release=v1.4
 
 # Configure extensions in the master config for console customization
 # See: https://docs.openshift.org/latest/install_config/web_console_customization.html#serving-static-files
-#openshift_master_oauth_template=/path/to/login-template.html
+#ophenshift_master_oauth_template=/path/to/login-template.html
 
 # Configure imagePolicyConfig in the master config
 # See: https://godoc.org/github.com/openshift/origin/pkg/cmd/server/api#ImagePolicyConfig
@@ -73,14 +74,15 @@ openshift_release=v1.4
 # Add additional, insecure, and blocked registries to global docker configuration
 # For enterprise deployment types we ensure that registry.access.redhat.com is
 # included if you do not include it
-#openshift_docker_additional_registries=registry.example.com
+# 加速容器方式部署
+openshift_docker_additional_registries=hub.xxp.cn
 #openshift_docker_insecure_registries=registry.example.com
 #openshift_docker_blocked_registries=registry.hacker.com
 # Disable pushing to dockerhub
 #openshift_docker_disable_push_dockerhub=True
 # Items added, as is, to end of /etc/sysconfig/docker OPTIONS
 # Default value: "--log-driver=json-file --log-opt max-size=50m"
-#openshift_docker_options="-l warn --ipv6=false"
+openshift_docker_options="-l warn --ipv6=false -s overlay --selinux-enabled=false"
 
 # Specify exact version of Docker to configure or upgrade to.
 # Downgrades are not supported and will error out. Be careful when upgrading docker from < 1.10 to > 1.10.
@@ -96,12 +98,14 @@ openshift_release=v1.4
 #openshift_examples_modify_imagestreams=true
 
 # Origin copr repo
-#openshift_additional_repos=[{'id': 'openshift-origin-copr', 'name': 'OpenShift Origin COPR', 'baseurl': 'https://copr-be.cloud.fedoraproject.org/results/maxamillion/origin-next/epel-7-$basearch/', 'enabled': 1, 'gpgcheck': 1, 'gpgkey': 'https://copr-be.cloud.fedoraproject.org/results/maxamillion/origin-next/pubkey.gpg'}]
+# 192.168.56.1:8000是私有yum仓
+# openshift_additional_repos=[{'id': 'openshift-origin-local', 'name': 'OpenShift Origin', 'baseurl': 'http://192.168.56.1:8000/centos-openshift-origin', 'enabled': 1, 'gpgcheck': 0},{'id': 'openshift-bse-local', 'name': 'OpenShift Base', 'baseurl': 'http://192.168.56.1:8000/base', 'enabled': 1, 'gpgcheck': 0}]
 
 # htpasswd auth
 openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 'challenge': 'true', 'kind': 'HTPasswdPasswordIdentityProvider', 'filename': '/etc/origin/master/htpasswd'}]
 # Defining htpasswd users
-#openshift_master_htpasswd_users={'user1': '<pre-hashed password>', 'user2': '<pre-hashed password>'}
+# 用户密码生成: htpasswd -b /etc/origin/master/htpasswd developer developer
+openshift_master_htpasswd_users={'developer': '$apr1$KEqrbTV1$cTMJhEvEUVM6uKsT93//t.', 'tester': '$apr1$1Li/7Wp0$16NPCRmjDeYajY0v3aroz/'}
 # or
 #openshift_master_htpasswd_file=<path to local pre-generated htpasswd file>
 
@@ -201,10 +205,10 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 # openshift_master_cluster_hostname must resolve to the load balancer
 # or to one or all of the masters defined in the inventory if no load
 # balancer is present.
-#openshift_master_cluster_method=native
-#openshift_master_cluster_hostname=openshift-ansible.test.example.com
-#openshift_master_cluster_public_hostname=openshift-ansible.test.example.com
-
+openshift_master_cluster_method=native
+openshift_master_cluster_hostname=192.168.56.104
+openshift_master_cluster_public_hostname=192.168.31.35
+ 
 # Pacemaker high availability cluster method.
 # Pacemaker HA environment must be able to self provision the
 # configured VIP. For installation openshift_master_cluster_hostname
@@ -463,7 +467,7 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 #openshift_hosted_logging_deployer_version=3.3.0
 
 # Configure the multi-tenant SDN plugin (default is 'redhat/openshift-ovs-subnet')
-# os_sdn_network_plugin_name='redhat/openshift-ovs-multitenant'
+os_sdn_network_plugin_name='redhat/openshift-ovs-multitenant'
 
 # Disable the OpenShift SDN plugin
 # openshift_use_openshift_sdn=False
@@ -472,8 +476,9 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 # network blocks should be private and should not conflict with network blocks
 # in your infrastructure that pods may require access to. Can not be changed
 # after deployment.
-#osm_cluster_network_cidr=10.1.0.0/16
-#openshift_portal_net=172.30.0.0/16
+# 为了实现1000+ pods per node, 才有了这里的更改
+osm_cluster_network_cidr=12.1.0.0/12
+openshift_portal_net=170.16.0.0/16
 
 
 # ExternalIPNetworkCIDRs controls what values are acceptable for the
@@ -494,7 +499,7 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 
 # Configure number of bits to allocate to each host’s subnet e.g. 8
 # would mean a /24 network on the host.
-#osm_host_subnet_length=8
+osm_host_subnet_length=10
 
 # Configure master API and console ports.
 #openshift_master_api_port=8443
@@ -558,7 +563,7 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 # Configure nodeIP in the node config
 # This is needed in cases where node traffic is desired to go over an
 # interface other than the default network interface.
-#openshift_node_set_node_ip=True
+# openshift_node_set_node_ip=True
 
 # Force setting of system hostname when configuring OpenShift
 # This works around issues related to installations that do not have valid dns
@@ -566,10 +571,10 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 #openshift_set_hostname=True
 
 # Configure dnsIP in the node config
-#openshift_dns_ip=172.30.0.1
+openshift_dns_ip=170.16.0.2
 
 # Configure node kubelet arguments. pods-per-core is valid in OpenShift Origin 1.3 or OpenShift Container Platform 3.3 and later.
-#openshift_node_kubelet_args={'pods-per-core': ['10'], 'max-pods': ['250'], 'image-gc-high-threshold': ['90'], 'image-gc-low-threshold': ['80']}
+openshift_node_kubelet_args={'pods-per-core': ['0'], 'max-pods': ['1024'], 'image-gc-high-threshold': ['90'], 'image-gc-low-threshold': ['80']}
 
 # Configure logrotate scripts
 # See: https://github.com/nickhammond/ansible-logrotate
@@ -636,19 +641,27 @@ openshift_master_identity_providers=[{'name': 'htpasswd_auth', 'login': 'true', 
 
 # host group for masters
 [masters]
-ose3-master[1:3]-ansible.test.example.com
+192.168.56.100 openshift_ip=192.168.56.100 openshift_hostname=192.168.56.100
+192.168.56.101 openshift_ip=192.168.56.101 openshift_hostname=192.168.56.101
+192.168.56.102 openshift_ip=192.168.56.102 openshift_hostname=192.168.56.102
 
+
+# openshift_ip和openshift_hostname可以指定内网IP，防止监听到外网ip上
 [etcd]
-ose3-etcd[1:3]-ansible.test.example.com
+192.168.56.100  openshift_ip=192.168.56.100 openshift_hostname=192.168.56.100
+192.168.56.101  openshift_ip=192.168.56.101 openshift_hostname=192.168.56.101
+192.168.56.102  openshift_ip=192.168.56.102 openshift_hostname=192.168.56.102
 
 # NOTE: Containerized load balancer hosts are not yet supported, if using a global
 # containerized=true host variable we must set to false.
 [lb]
-ose3-lb-ansible.test.example.com containerized=false
+192.168.56.104 containerized=false
 
 # NOTE: Currently we require that masters be part of the SDN which requires that they also be nodes
 # However, in order to ensure that your masters are not burdened with running pods you should
 # make them unschedulable by adding openshift_schedulable=False any node that's also a master.
 [nodes]
-ose3-master[1:3]-ansible.test.example.com
-ose3-node[1:2]-ansible.test.example.com openshift_node_labels="{'region': 'primary', 'zone': 'default'}"
+192.168.56.100 openshift_ip=192.168.56.100 openshift_hostname=192.168.56.100
+192.168.56.101 openshift_ip=192.168.56.101 openshift_hostname=192.168.56.101
+192.168.56.102 openshift_ip=192.168.56.102 openshift_hostname=192.168.56.102
+192.168.56.103 openshift_ip=192.168.56.103 openshift_hostname=192.168.56.103 openshift_node_labels="{'region': 'primary', 'zone': 'default'}"
