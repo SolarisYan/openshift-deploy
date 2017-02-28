@@ -625,7 +625,7 @@ openshift_node_kubelet_args={'pods-per-core': ['0'], 'max-pods': ['1024'], 'imag
 #openshift_master_dynamic_provisioning_enabled=False
 
 # Configure usage of openshift_clock role.
-#openshift_clock_enabled=true
+openshift_clock_enabled=true
 
 # OpenShift Per-Service Environment Variables
 # Environment variables are added to /etc/sysconfig files for

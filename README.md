@@ -90,6 +90,7 @@ roles/openshift_facts/library/openshift_facts.py                            |  2
   ```
 
 ## 说明
-
-  - 成立独立项目说明， 后期要实践离线环境下，如何平滑升级openshift平台， 1.4->1.5.
+  - 默认会开启ntp同步，如果不需要的，自行关闭 ``openshift_clock_enabled=false``
+  - v1.4.1里默认部署后，日志里可能会每10秒打印“conversion.go:133] failed to handle multiple devices for container. Skipping Filesystem stats”，这个是上游的[bug](https://github.com/kubernetes/kubernetes/issues/22586)，是cavidor的bug，没什么影响。latest已经修复，实在闲烦人的话，可以loglevel再调低到1.
+  - 后期要实践离线环境下，如何平滑升级openshift平台， 1.4->1.5.
   - 更多openshift的实践，可参考[blog](https://github.com/xiaoping378/blog/tree/master/posts)
