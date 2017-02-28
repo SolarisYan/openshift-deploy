@@ -1,63 +1,93 @@
 [![Join the chat at https://gitter.im/openshift/openshift-ansible](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/openshift/openshift-ansible)
 
-#OpenShift Ansible
+# OpenShift 离线安装
 
-This repo contains Ansible code for OpenShift. This repo and the origin RPMs
-that it installs currently require a package that provides `docker`. Currently
-the RPMs provided from dockerproject.org do not provide this requirement, though
-they may in the future.
+为什么非要离线安装：
+  - 节点网络环境不允许
+  - 加速部署，方便调试
 
-##Branches and tags
+本项目主要实现离线安装，且包含下面的特性：
+  - 启用master-HA
+  - 指明多网卡时，默认内网通信
+  - docker默认使用overlayFS
+  - 修改上限，每个node最多可运行1000+个pod
+  - 默认开启多租户SDN网络（project间强隔离）
+  - 默认安装ceph，gluster，nfs共享存储的依赖组件
+  - 启用http-auth认证，内置developer和tester用户
 
-The master branch tracks our current work and should be compatible with both
-Origin master branch and the most recent Origin stable release. Currently that's
-v1.4 and v1.3.x. In addition to the master branch we maintain stable branches
-corresponding to upstream Origin releases, ie: release-1.2. The most recent of
-branch will often receive minor feature backports and fixes. Older branches will
-receive only critical fixes.
+## 实现离线安装
 
-Releases are tagged periodically from active branches and are versioned 3.x
-corresponding to Origin releases 1.x. We unfortunately started with 3.0 and it's
-not practical to start over at 1.0.
+基于openshift-ansible项目的分支``openshift-ansible-3.4.17-1``来搞的，主要改了三个原文件实现的离线部署
+```
+# git diff --stat HEAD HEAD^
+inventory/byo/hosts.origin.example                                          | 61 +++++++++++++++----------------------
+roles/openshift_facts/library/openshift_facts.py                            |  2 +-
+.../files/origin/repos/openshift-ansible-centos-paas-sig.repo               | 48 ++++++++++++++---------------
+3 files changed, 49 insertions(+), 62 deletions(-)
+```
+其中第二个文件如果不搞容器化的离线安装，没必要改。
 
-##Setup
-- Install base dependencies:
-  - Requirements:
-    - Ansible >= 2.1.0 though 2.2 is preferred for performance reasons.
-    - Jinja >= 2.7
+一开始想着容器化安装，就可以实现离线安装了， 结果容器化+HA搞完后，发现即使有私有镜像仓，还是需要外网：
+  - node上需要一些ansible的python依赖
+  - LB节点上需要haproxy的安装
 
-  - Fedora:
+所以目前推荐rpm离线安装
+
+## 自建yum repos
+
+  - 找一台可联接外网的centos， clone此项目
+    ```
+    git clone --depth=1 https://github.com/xiaoping378/openshift-deploy.git
+    cd openshift-deploy
+    ```
+
+  - 准备远程yum信息
+    - 把源码里的[文件](roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS),复制到``/etc/pki/rpm-gpg/``
+      ```
+      cp roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS /etc/pki/rpm-gpg/
+      ```
+    - 备份原yum信息并替换
+      ```
+        mv /etc/yum.repos.d /etc/yum.repod.d~
+        mv offline/yum.repos.d /etc
+      ```
+
+  - 执行下面命令，会自动同步最新的所有依赖。
+    ```
+    mkdir repos && cd repos
+    yum install -y yum-utils createrepo
+    ##必须要导入这个，不然无法同步下载origin的repo仓
+    rpm --import /etc/pki/rpm-gpg/openshift-ansible-CentOS-SIG-PaaS
+    ##
+    for i in base centos-openshift-origin extras updates then; do reposync --gpgcheck -l --repoid=$i; done
+    for i in base centos-openshift-origin extras updates then;  do cd $i && createrepo -v `pwd` && cd ../; done
+
+    # 启动webserver，以供其他节点使用
+    python -m SimpleHTTPServer
+    ```
+
+## 开始安装
+
+  - 源码文件``inventory/byo/hosts.origin.example``， 是我写好的例子
+
+    - 自行修改成自己环境里的nodeIP
+
+  - 在各node上加入离线yum仓信息
+
+    注意修改``createRepo.sh``脚本内容，主要是更换自己环境里webserver的IP
+
+    ```
+    ansible -i ./inventory/byo/hosts.origin.example  all -m copy -a 'src="/home/xxp/Github/openshift-deploy/offline/createRepo.sh" dest="/root/createRepo.sh"'
+    ansible -i ./inventory/byo/hosts.origin.example all -m shell -a 'bash /root/createRepo.sh'
+    ```
+
+  - 开装！
+
   ```
-    dnf install -y ansible-2.1.0.0 pyOpenSSL python-cryptography
+  ansible-playbook -i ./inventory/byo/hosts.origin.example  playbooks/byo/config.yml
   ```
 
-  - OSX:
-  ```
-    # Install ansible 2.1.0.0 and python 2
-    brew install ansible python
-  ```
-- Setup for a specific cloud:
-  - [AWS](http://github.com/openshift/openshift-ansible/blob/master/README_AWS.md)
-  - [GCE](http://github.com/openshift/openshift-ansible/blob/master/README_GCE.md)
-  - [local VMs](http://github.com/openshift/openshift-ansible/blob/master/README_libvirt.md)
+## 说明
 
-- Bring your own host deployments:
-  - [OpenShift Enterprise](https://docs.openshift.com/enterprise/latest/install_config/install/advanced_install.html)
-  - [OpenShift Origin](https://docs.openshift.org/latest/install_config/install/advanced_install.html)
-  - [Atomic Enterprise](http://github.com/openshift/openshift-ansible/blob/master/README_AEP.md)
-
-- Build
-  - [How to build the openshift-ansible rpms](BUILD.md)
-
-- Directory Structure:
-  - [bin/cluster](https://github.com/openshift/openshift-ansible/tree/master/bin/cluster) - python script to easily create clusters
-  - [docs](https://github.com/openshift/openshift-ansible/tree/master/docs) - Documentation for the project
-  - [filter_plugins/](https://github.com/openshift/openshift-ansible/tree/master/filter_plugins) - custom filters used to manipulate data in Ansible
-  - [inventory/](https://github.com/openshift/openshift-ansible/tree/master/inventory) - houses Ansible dynamic inventory scripts
-  - [playbooks/](https://github.com/openshift/openshift-ansible/tree/master/playbooks) - houses host-type Ansible playbooks (launch, config, destroy, vars)
-  - [roles/](https://github.com/openshift/openshift-ansible/tree/master/roles) - shareable Ansible tasks
-
-##Contributing
-- [Best Practices Guide](https://github.com/openshift/openshift-ansible/blob/master/docs/best_practices_guide.adoc)
-- [Core Concepts](https://github.com/openshift/openshift-ansible/blob/master/docs/core_concepts_guide.adoc)
-- [Style Guide](https://github.com/openshift/openshift-ansible/blob/master/docs/style_guide.adoc)
+  - 成立独立项目说明， 后期要实践离线环境下，如何平滑升级openshift平台， 1.4->1.5.
+  - 更多openshift的实践，可参考[blog](https://github.com/xiaoping378/blog/tree/master/posts)
