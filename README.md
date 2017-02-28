@@ -42,27 +42,29 @@ roles/openshift_facts/library/openshift_facts.py                            |  2
     ```
 
   - 准备远程yum信息
-    - 把源码里的[文件](roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS),复制到``/etc/pki/rpm-gpg/``
-      ```
-      cp roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS /etc/pki/rpm-gpg/
-      ```
+    - 复制源码里的签名[文件](roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS)
+    ```
+    cp roles/openshift_repos/files/origin/gpg_keys/openshift-ansible-CentOS-SIG-PaaS /etc/pki/rpm-gpg/
+    ```
     - 备份原yum信息并替换
-      ```
-        mv /etc/yum.repos.d /etc/yum.repod.d~
-        mv offline/yum.repos.d /etc
-      ```
+    ```
+    mv /etc/yum.repos.d /etc/yum.repod.d~
+    mv offline/yum.repos.d /etc
+    ```
 
-  - 执行下面命令，会自动同步最新的所有依赖。
+  - 执行下面命令，会自动同步下载所需yum源，并启动webserver
     ```
     mkdir repos && cd repos
     yum install -y yum-utils createrepo
-    ##必须要导入这个，不然无法同步下载origin的repo仓
+
+    # 必须要导入这个，不然无法同步下载origin的repo仓
     rpm --import /etc/pki/rpm-gpg/openshift-ansible-CentOS-SIG-PaaS
-    ##
+
+    # 批量下载
     for i in base centos-openshift-origin extras updates then; do reposync --gpgcheck -l --repoid=$i; done
     for i in base centos-openshift-origin extras updates then;  do cd $i && createrepo -v `pwd` && cd ../; done
 
-    # 启动webserver，以供其他节点使用
+    #启动webserver，以供其他节点使用
     python -m SimpleHTTPServer
     ```
 
